@@ -24,8 +24,10 @@ app.post("/chat", async (req, res) => {
       messages: [
         {
           role: "system",
-          content: `You are a helpful assistant. For each user message, reply with JSON:
-{"reply": "...", "mood": "happy|sad|angry|confused|neutral"}`,
+          content: `You are a helpful assistant. ALWAYS respond with EXACTLY one JSON object, and NOTHING ELSE. The JSON must have two keys:
+          1. "reply" — your text response.
+          2. "mood" — one of: happy, sad, angry, confused, or neutral.
+          Example output: {"reply":"Hello there!","mood":"neutral"}`,
         },
         { role: "user", content: message },
       ],
