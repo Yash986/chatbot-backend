@@ -1,7 +1,7 @@
 // index.js
 const express = require("express");
 const cors = require("cors");
-const OpenAI = require("openai");    // ← import the default export
+const OpenAI = require("openai");    // ← default import for v4
 require("dotenv").config();
 
 const app = express();
@@ -10,7 +10,7 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Instantiate the v4 client directly with your API key
+// Instantiate the v4 client directly
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -31,7 +31,7 @@ app.post("/chat", async (req, res) => {
       ],
     });
 
-    // The API returns the JSON string in completion.choices[0].message.content
+    // Extract the JSON string and parse it
     const json = completion.choices[0].message.content;
     const parsed = JSON.parse(json);
     res.json(parsed);
