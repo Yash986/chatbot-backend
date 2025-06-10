@@ -1,6 +1,7 @@
+// index.js
 const express = require("express");
 const cors = require("cors");
-const { Configuration, OpenAIApi } = require("openai");
+const OpenAI = require("openai");    // ← import the default export
 require("dotenv").config();
 
 const app = express();
@@ -9,26 +10,29 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-const configuration = new Configuration({
+// Instantiate the v4 client directly with your API key
+const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
-const openai = new OpenAIApi(configuration);
 
 app.post("/chat", async (req, res) => {
   const { message } = req.body;
   try {
-    const completion = await openai.createChatCompletion({
+    // v4: use openai.chat.completions.create
+    const completion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
       messages: [
         {
           role: "system",
           content: `You are a helpful assistant. For each user message, reply with JSON:
-{ "reply": "...", "mood": "happy|sad|angry|confused|neutral" }`
+{"reply": "...", "mood": "happy|sad|angry|confused|neutral"}`,
         },
-        { role: "user", content: message }
-      ]
+        { role: "user", content: message },
+      ],
     });
-    const json = completion.data.choices[0].message.content;
+
+    // The API returns the JSON string in completion.choices[0].message.content
+    const json = completion.choices[0].message.content;
     const parsed = JSON.parse(json);
     res.json(parsed);
   } catch (err) {
