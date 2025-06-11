@@ -7,12 +7,41 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
+// Sentiment analysis using Together.ai and Hugging Face model
+async function detectEmotion(message) {
+  try {
+    const response = await axios.post(
+      "https://api.together.xyz/inference",
+      {
+        model: "j-hartmann/emotion-english-distilroberta-base",
+        input: message,
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.TOGETHER_API_KEY}`,
+        },
+      }
+    );
+
+    const predictions = response.data;
+    const topEmotion = predictions[0]?.label?.toLowerCase() || "neutral";
+    return topEmotion;
+  } catch (error) {
+    console.error("Emotion detection error:", error.message);
+    return "neutral";
+  }
+}
+
 app.post("/chat", async (req, res) => {
   const userMessage = req.body.message;
 
   try {
-    // Get AI response from Together.ai (LLaMA 3)
-    const response = await axios.post(
+    // Detect emotion from message
+    const mood = await detectEmotion(userMessage);
+
+    // Get AI reply using Together.ai (LLaMA 3)
+    const aiResponse = await axios.post(
       "https://api.together.xyz/v1/chat/completions",
       {
         model: "meta-llama/Llama-3-8b-chat-hf",
@@ -30,20 +59,7 @@ app.post("/chat", async (req, res) => {
       }
     );
 
-    const aiReply = response.data.choices[0].message.content;
-
-    // Basic mood detection based on user input (you can improve this later with sentiment models)
-    let mood = "neutral";
-    const lowerMsg = userMessage.toLowerCase();
-
-    if (lowerMsg.includes("happy") || lowerMsg.includes("excited") || lowerMsg.includes("great")) {
-      mood = "happy";
-    } else if (lowerMsg.includes("sad") || lowerMsg.includes("tired") || lowerMsg.includes("unhappy")) {
-      mood = "sad";
-    } else if (lowerMsg.includes("angry") || lowerMsg.includes("frustrated") || lowerMsg.includes("mad")) {
-      mood = "angry";
-    }
-
+    const aiReply = aiResponse.data.choices[0].message.content;
     res.json({ reply: aiReply, mood });
 
   } catch (error) {
