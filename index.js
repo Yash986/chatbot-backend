@@ -1,49 +1,43 @@
-// index.js
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const OpenAI = require("openai");    // v4 default import
-require("dotenv").config();
+const axios = require("axios");
 
 const app = express();
-const port = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
 
-// Instantiate the v4 client directly
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 app.post("/chat", async (req, res) => {
-  const { message } = req.body;
+  const userMessage = req.body.message;
+
   try {
-    // Use the v4-style call
-    const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        {
-          role: "system",
-          content: `You are a helpful assistant. ALWAYS respond with EXACTLY one JSON object, and NOTHING ELSE. The JSON must have two keys:
-          1. "reply" — your text response.
-          2. "mood" — one of: happy, sad, angry, confused, or neutral.
-          Example output: {"reply":"Hello there!","mood":"neutral"}`,
+    const response = await axios.post(
+      "https://api.together.xyz/v1/chat/completions",
+      {
+        model: "mistralai/Mistral-7B-Instruct-v0.2", // You can swap this with another Together.ai model
+        messages: [
+          { role: "system", content: "You are a friendly chatbot that responds with understanding and expression." },
+          { role: "user", content: userMessage },
+        ],
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.TOGETHER_API_KEY}`,
+          "Content-Type": "application/json",
         },
-        { role: "user", content: message },
-      ],
-    });
+      }
+    );
 
-    // Parse GPT’s JSON response
-    const json = completion.choices[0].message.content;
-    const parsed = JSON.parse(json);
-    res.json(parsed);
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Error generating reply");
+    const reply = response.data.choices[0].message.content.trim();
+    res.json({ reply });
+  } catch (error) {
+    console.error("Error generating reply", error?.response?.data || error.message);
+    res.status(500).json({ error: "Failed to generate a response." });
   }
 });
 
-app.listen(port, () => {
-  console.log(`Server listening on port ${port}`);
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
