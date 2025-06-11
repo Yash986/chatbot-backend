@@ -11,27 +11,29 @@ app.use(bodyParser.json());
 async function detectEmotion(message) {
   try {
     const response = await axios.post(
-      "https://api.together.xyz/inference",
+      "https://api-inference.huggingface.co/models/j-hartmann/emotion-english-distilroberta-base",
       {
-        model: "j-hartmann/emotion-english-distilroberta-base",
-        input: message,
+        inputs: message,
       },
       {
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.TOGETHER_API_KEY}`,
+          Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
         },
       }
     );
 
-    const predictions = response.data;
-    const topEmotion = predictions[0]?.label?.toLowerCase() || "neutral";
-    return topEmotion;
+    const predictions = response.data[0];
+    const topPrediction = predictions.reduce((prev, current) =>
+      prev.score > current.score ? prev : current
+    );
+
+    return topPrediction.label.toLowerCase(); // e.g. "joy", "anger"
   } catch (error) {
     console.error("Emotion detection error:", error.message);
     return "neutral";
   }
 }
+
 
 app.post("/chat", async (req, res) => {
   const userMessage = req.body.message;
