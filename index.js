@@ -7,13 +7,13 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// Sentiment analysis using Together.ai and Hugging Face model
-async function detectEmotion(message) {
+// Sentiment analysis on bot's reply using Hugging Face model
+async function detectEmotion(text) {
   try {
     const response = await axios.post(
       "https://api-inference.huggingface.co/models/j-hartmann/emotion-english-distilroberta-base",
       {
-        inputs: message,
+        inputs: text,
       },
       {
         headers: {
@@ -27,28 +27,24 @@ async function detectEmotion(message) {
       prev.score > current.score ? prev : current
     );
 
-    return topPrediction.label.toLowerCase(); // e.g. "joy", "anger"
+    return topPrediction.label.toLowerCase(); // e.g. "joy", "anger", "neutral"
   } catch (error) {
     console.error("Emotion detection error:", error.message);
     return "neutral";
   }
 }
 
-
 app.post("/chat", async (req, res) => {
   const userMessage = req.body.message;
 
   try {
-    // Detect emotion from message
-    const mood = await detectEmotion(userMessage);
-
-    // Get AI reply using Together.ai (LLaMA 3)
+    // Step 1: Get AI reply using Together.ai (LLaMA 3)
     const aiResponse = await axios.post(
       "https://api.together.xyz/v1/chat/completions",
       {
         model: "meta-llama/Llama-3-8b-chat-hf",
         messages: [
-          { role: "system", content: "You are a friendly chatbot that helps users and understands their mood." },
+          { role: "system", content: "You are a friendly chatbot that helps users and understands emotions." },
           { role: "user", content: userMessage },
         ],
         temperature: 0.7,
@@ -62,6 +58,23 @@ app.post("/chat", async (req, res) => {
     );
 
     const aiReply = aiResponse.data.choices[0].message.content;
+
+    // Step 2: Detect emotion from bot's reply
+    const rawEmotion = await detectEmotion(aiReply);
+
+    // Step 3: Map Hugging Face emotion → UI mood
+    const emotionToMood = {
+      joy: "happy",
+      sadness: "sad",
+      anger: "angry",
+      fear: "confused",
+      surprise: "confused",
+      neutral: "neutral",
+    };
+
+    const mood = emotionToMood[rawEmotion] || "neutral";
+
+    // Step 4: Return both reply and mood
     res.json({ reply: aiReply, mood });
 
   } catch (error) {
