@@ -7,8 +7,7 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// Sentiment analysis using Hugging Face
-async function detectEmotion(message) {
+const detectEmotion = async (message) => {
   try {
     const response = await axios.post(
       "https://api-inference.huggingface.co/models/j-hartmann/emotion-english-distilroberta-base",
@@ -27,27 +26,27 @@ async function detectEmotion(message) {
       prev.score > current.score ? prev : current
     );
 
-    return topPrediction.label.toLowerCase(); // e.g. "joy", "anger", "sadness"
+    return topPrediction.label.toLowerCase(); // e.g. "joy", "anger"
   } catch (error) {
     console.error("Emotion detection error:", error.message);
     return "neutral";
   }
-}
+};
 
 app.post("/chat", async (req, res) => {
   const userMessage = req.body.message;
 
   try {
-    // 1. Detect emotion in user's message
+    // Step 1: Detect user emotion
     const userMood = await detectEmotion(userMessage);
 
-    // 2. Get AI reply using Together.ai
+    // Step 2: Generate AI reply
     const aiResponse = await axios.post(
       "https://api.together.xyz/v1/chat/completions",
       {
         model: "meta-llama/Llama-3-8b-chat-hf",
         messages: [
-          { role: "system", content: "You are a friendly chatbot that understands emotional tone and responds accordingly." },
+          { role: "system", content: "You are a friendly chatbot that helps users and understands their mood." },
           { role: "user", content: userMessage },
         ],
         temperature: 0.7,
@@ -62,15 +61,19 @@ app.post("/chat", async (req, res) => {
 
     const aiReply = aiResponse.data.choices[0].message.content;
 
-    // 3. Detect emotion in AI's reply instead of user message
+    // Step 3: Detect bot's emotion
     const botMood = await detectEmotion(aiReply);
 
-    // 4. Send both reply and bot's mood
-    res.json({ reply: aiReply, mood: botMood });
+    // Step 4: Respond with everything
+    res.json({ reply: aiReply, userMood, botMood });
 
   } catch (error) {
     console.error("Error generating reply:", error.message);
-    res.status(500).json({ reply: "Sorry, I couldn’t reach my brain right now 😞", mood: "neutral" });
+    res.status(500).json({
+      reply: "Sorry, I couldn’t reach my brain right now 😞",
+      userMood: "neutral",
+      botMood: "neutral",
+    });
   }
 });
 
