@@ -7,7 +7,7 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-const detectEmotion = async (message) => {
+async function detectEmotion(message) {
   try {
     const response = await axios.post(
       "https://api-inference.huggingface.co/models/j-hartmann/emotion-english-distilroberta-base",
@@ -22,31 +22,33 @@ const detectEmotion = async (message) => {
     );
 
     const predictions = response.data[0];
-    const topPrediction = predictions.reduce((prev, current) =>
+    const top = predictions.reduce((prev, current) =>
       prev.score > current.score ? prev : current
     );
 
-    return topPrediction.label.toLowerCase(); // e.g. "joy", "anger"
-  } catch (error) {
-    console.error("Emotion detection error:", error.message);
+    return top.label.toLowerCase(); // e.g. "joy"
+  } catch (err) {
+    console.error("Emotion detection error:", err.message);
     return "neutral";
   }
-};
+}
 
 app.post("/chat", async (req, res) => {
   const userMessage = req.body.message;
 
   try {
-    // Step 1: Detect user emotion
     const userMood = await detectEmotion(userMessage);
 
-    // Step 2: Generate AI reply
     const aiResponse = await axios.post(
       "https://api.together.xyz/v1/chat/completions",
       {
         model: "meta-llama/Llama-3-8b-chat-hf",
         messages: [
-          { role: "system", content: "You are a friendly chatbot that helps users and understands their mood." },
+          {
+            role: "system",
+            content:
+              "You are a helpful assistant. At the end of each response, add a one-word emotion tag in brackets, such as [joy], [anger], [sadness], [neutral], [fear], [disgust], or [surprise] based on your tone.",
+          },
           { role: "user", content: userMessage },
         ],
         temperature: 0.7,
@@ -59,16 +61,16 @@ app.post("/chat", async (req, res) => {
       }
     );
 
-    const aiReply = aiResponse.data.choices[0].message.content;
+    const rawReply = aiResponse.data.choices[0].message.content;
 
-    // Step 3: Detect bot's emotion
-    const botMood = await detectEmotion(aiReply);
+    // Extract [emotion] tag from reply
+    const tagMatch = rawReply.match(/\[(\w+)\]$/);
+    const botMood = tagMatch ? tagMatch[1].toLowerCase() : "neutral";
+    const cleanReply = tagMatch ? rawReply.replace(/\[\w+\]$/, "").trim() : rawReply;
 
-    // Step 4: Respond with everything
-    res.json({ reply: aiReply, userMood, botMood });
-
-  } catch (error) {
-    console.error("Error generating reply:", error.message);
+    res.json({ reply: cleanReply, userMood, botMood });
+  } catch (err) {
+    console.error("Chat error:", err.message);
     res.status(500).json({
       reply: "Sorry, I couldn’t reach my brain right now 😞",
       userMood: "neutral",
@@ -78,6 +80,4 @@ app.post("/chat", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
