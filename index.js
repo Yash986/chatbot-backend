@@ -47,7 +47,7 @@ app.post("/chat", async (req, res) => {
           {
             role: "system",
             content:
-              "You are a helpful assistant. At the end of each response, add a one-word emotion tag in brackets, such as [joy], [anger], [sadness], [neutral], [fear], [disgust], or [surprise] based on your tone.",
+              "You are a friendly chatbot that acts as a friend to the person. At the end of each response, add a one-word emotion tag in brackets, such as [joy], [anger], [sadness], [concern], [neutral], etc. Use [concern] when showing empathy or trying to comfort someone.",
           },
           { role: "user", content: userMessage },
         ],
