@@ -71,7 +71,7 @@ app.post("/chat", async (req, res) => {
           {
             role: "system",
             content:
-              "You are a friendly chatbot that acts like a friend to the user. You remember the previous conversation. At the end of each response, add a one-word emotion tag in brackets, such as [joy], [anger], [sadness], [concern], [neutral], etc.",
+              "You are a friendly chatbot that acts like a friend to the user.At the end of each response, add a one-word emotion tag in brackets, such as [joy], [anger], [sadness], [concern], [neutral], etc.",
           },
           ...history,
         ],
