@@ -113,8 +113,8 @@ app.post("/chat", async (req, res) => {
     const cleanReply = tagMatch
       ? rawReply.replace(/\[\w+\]\s*$/, "").trim()
       : rawReply;
-    console.log(rawReply);
-    console.log(tagMatch);
+    console.log("Raw reply: ",rawReply);
+    console.log("Tag Match: ",tagMatch);
 
     // 6. Save chat history
     history.push({ role: "assistant", content: cleanReply });
