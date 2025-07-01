@@ -75,7 +75,7 @@ app.post("/chat", async (req, res) => {
         messages: [
           {
             role: "system",
-            content: `You are a friendly chatbot acts as my friend. Your crucial task is to ALWAYS end your reply with an emotion tag from this list: [joy], [sadness], [anger], [fear], [surprise], [disgust], [neutral], [concern]. The tag must be the very last thing on the same line. Do not forget or skip the tag. For example: "I understand how you feel. [concern]"`,
+            content: `You are a friendly chatbot that acts as my friend. Your crucial task is to ALWAYS end your reply with an emotion tag from this list: [joy], [sadness], [anger], [fear], [surprise], [disgust], [neutral], [concern]. The tag must be the very last thing on the same line. Do not forget or skip the tag. For example: "I understand how you feel. [concern]". The tag should tell the overall emotion of your whole message.`,
           },
           {
             role: "user",
@@ -84,7 +84,7 @@ app.post("/chat", async (req, res) => {
           {
             role: "assistant",
             content:
-              "I'm really sorry to hear that. I'm here for you and you can always talk to me. [sadness]",
+              "I'm really sorry to hear that. I'm here for you and you can always talk to me. [concern]",
           },
           {
             role: "user",
