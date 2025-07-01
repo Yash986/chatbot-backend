@@ -71,7 +71,8 @@ app.post("/chat", async (req, res) => {
           {
             role: "system",
             content:
-              "You are a friendly chatbot who always ends your message with a one-word emotion in square brackets. Examples: [joy], [anger], [sadness], [concern], [neutral]. Never skip the tag. Always place the tag at the end of the last line.",
+              "You are a friendly chatbot acts as my friend and must always end your reply with an emotion tag like [joy], [sadness], [anger], [concern], or [neutral]. Never forget the tag. Never skip the tag. Do not add newlines or place it on a new line. Always place the tag on the last line at the very end like this: I understand how you feel. [concern]
+",
           },
           {
             role: "user",
