@@ -93,7 +93,7 @@ app.post("/chat", async (req, res) => {
       // The rest of the user's chat history goes here dynamically
       ...history,
       // The current user message that triggered this request
-      { role: "user", content: message },
+      { role: "user", content: userMessage },
     ],
     temperature: 0.7,
   },
