@@ -71,7 +71,7 @@ app.post("/chat", async (req, res) => {
     const aiResponse = await axios.post(
   "https://api.together.xyz/v1/chat/completions",
   {
-    model: "mistralai/Mixtral-8x7B-Instruct-v0.1",
+    model: "meta-llama/Llama-3-8b-chat-hf",
     messages: [
       {
         role: "system",
