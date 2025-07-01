@@ -69,10 +69,8 @@ app.post("/chat", async (req, res) => {
         model: "meta-llama/Llama-3-8b-chat-hf",
         messages: [
           {
-            role: "system",
-            content:
-              "You are a friendly chatbot acts as my friend and must always end your reply with an emotion tag like [joy], [sadness], [anger], [concern], or [neutral]. Never forget the tag. Never skip the tag. Do not add newlines or place it on a new line. Always place the tag on the last line at the very end like this: I understand how you feel. [concern]
-",
+          role: "system",
+          content: `You are a friendly chatbot acts as my friend and must always end your reply with an emotion tag like [joy], [sadness], [anger], [concern], or [neutral]. Never forget the tag. Never skip the tag. Do not add newlines or place it on a new line. Always place the tag on the last line at the very end like this: "I understand how you feel. [concern]"`,  
           },
           {
             role: "user",
