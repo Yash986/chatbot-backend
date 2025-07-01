@@ -4,10 +4,10 @@ const bodyParser = require("body-parser");
 const axios = require("axios");
 const admin = require("firebase-admin");
 
-const serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG); // ✅ Use ENV
+const serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
 
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
+  credential: admin.credential.cert(serviceAccount),
 });
 
 const db = admin.firestore();
@@ -17,7 +17,7 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// 🧠 Emotion detection
+// 🧠 Emotion detection (still used for user messages)
 async function detectEmotion(message) {
   try {
     const response = await axios.post(
@@ -42,7 +42,7 @@ async function detectEmotion(message) {
   }
 }
 
-// 💬 Chat handler with memory
+// 💬 Chat handler with memory + bot emotion tag
 app.post("/chat", async (req, res) => {
   const { message: userMessage, userId } = req.body;
 
@@ -54,7 +54,7 @@ app.post("/chat", async (req, res) => {
     // 1. Detect user's mood
     const userMood = await detectEmotion(userMessage);
 
-    // 2. Get previous chat history from Firestore
+    // 2. Get previous chat history
     const sessionRef = sessions.doc(userId);
     const sessionDoc = await sessionRef.get();
     const history = sessionDoc.exists ? sessionDoc.data().history : [];
@@ -62,7 +62,7 @@ app.post("/chat", async (req, res) => {
     // 3. Add user message to history
     history.push({ role: "user", content: userMessage });
 
-    // 4. Generate AI reply
+    // 4. Generate AI reply (with emotion tagging system)
     const aiResponse = await axios.post(
       "https://api.together.xyz/v1/chat/completions",
       {
@@ -71,7 +71,25 @@ app.post("/chat", async (req, res) => {
           {
             role: "system",
             content:
-              "You are a friendly chatbot that acts like a friend to the user. At the end of each response, add a one-word emotion tag in brackets, such as [joy], [anger], [sadness], [concern], [neutral], etc. Never omit the tag.",
+              "You are a friendly chatbot who always ends your message with a one-word emotion in square brackets. Examples: [joy], [anger], [sadness], [concern], [neutral]. Never skip the tag. Always place the tag at the end of the last line.",
+          },
+          {
+            role: "user",
+            content: "I'm feeling really down today.",
+          },
+          {
+            role: "assistant",
+            content:
+              "I'm really sorry to hear that. I'm here for you and you can always talk to me. [sadness]",
+          },
+          {
+            role: "user",
+            content: "I got an A on my exam!",
+          },
+          {
+            role: "assistant",
+            content:
+              "That's amazing! I'm so proud of you. Great job! [joy]",
           },
           ...history,
         ],
@@ -87,11 +105,14 @@ app.post("/chat", async (req, res) => {
 
     const rawReply = aiResponse.data.choices[0].message.content;
 
-    // 5. Extract emotion from bot reply
-    const cleanReply = rawReply.trim();
-    const botMood = await detectEmotion(cleanReply);
+    // 5. Extract [mood] from AI message
+    const tagMatch = rawReply.match(/\[(\w+)\]\s*$/);
+    const botMood = tagMatch ? tagMatch[1].toLowerCase() : "neutral";
+    const cleanReply = tagMatch
+      ? rawReply.replace(/\[\w+\]\s*$/, "").trim()
+      : rawReply;
 
-    // 6. Add bot reply to history and save it
+    // 6. Save chat history
     history.push({ role: "assistant", content: cleanReply });
     await sessionRef.set({ history });
 
