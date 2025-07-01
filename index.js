@@ -37,7 +37,12 @@ async function detectEmotion(message) {
 
     return top.label.toLowerCase(); // e.g. joy, anger
   } catch (err) {
-    console.error("Emotion detection error:", err.message);
+    console.error(
+      "Emotion detection error:",
+      err.message,
+      "Status:", err.response?.status, // <-- Add this
+      "Data:", err.response?.data     // <-- Add this
+    );
     return "neutral";
   }
 }
@@ -123,7 +128,12 @@ app.post("/chat", async (req, res) => {
     // 7. Send reply
     res.json({ reply: cleanReply, userMood, botMood });
   } catch (err) {
-    console.error("Chat error:", err.message);
+    console.error(
+      "Chat error:",
+      err.message,
+      "Status:", err.response?.status, // <-- Add this
+      "Data:", err.response?.data     // <-- Add this
+    );
     res.status(500).json({
       reply: "Sorry, I couldn’t reach my brain right now 😞",
       userMood: "neutral",
