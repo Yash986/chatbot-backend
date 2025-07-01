@@ -129,6 +129,28 @@ app.post("/chat", async (req, res) => {
     });
   }
 });
+app.get("/test-key", async (req, res) => {
+  try {
+    const result = await axios.post(
+      "https://api.together.xyz/v1/chat/completions",
+      {
+        model: "meta-llama/Llama-3-8b-chat-hf",
+        messages: [{ role: "user", content: "Say hello [joy]" }],
+        temperature: 0.7,
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.TOGETHER_API_KEY}`,
+        },
+      }
+    );
+    res.send(result.data);
+  } catch (err) {
+    console.error("Key test failed:", err.response?.data || err.message);
+    res.status(500).json({ error: "Invalid key or model access" });
+  }
+});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
