@@ -64,43 +64,46 @@ app.post("/chat", async (req, res) => {
 
     // 4. Generate AI reply (with emotion tagging system)
     const aiResponse = await axios.post(
-      "https://api.together.xyz/v1/chat/completions",
+  "https://api.together.xyz/v1/chat/completions",
+  {
+    model: "meta-llama/Llama-3-8b-chat-hf",
+    messages: [
       {
-        model: "meta-llama/Llama-3-8b-chat-hf",
-        messages: [
-          {
-          role: "system",
-          content: `You are a friendly chatbot acts as my friend and must always end your reply with an emotion tag like [joy], [sadness], [anger], [concern], or [neutral]. Never forget the tag. Never skip the tag. Do not add newlines or place it on a new line. Always place the tag on the last line at the very end like this: "I understand how you feel. [concern]"`,  
-          },
-          {
-            role: "user",
-            content: "I'm feeling really down today.",
-          },
-          {
-            role: "assistant",
-            content:
-              "I'm really sorry to hear that. I'm here for you and you can always talk to me. [sadness]",
-          },
-          {
-            role: "user",
-            content: "I got an A on my exam!",
-          },
-          {
-            role: "assistant",
-            content:
-              "That's amazing! I'm so proud of you. Great job! [joy]",
-          },
-          ...history,
-        ],
-        temperature: 0.7,
+        role: "system",
+        content: `You are a friendly chatbot acts as my friend. Your crucial task is to ALWAYS end your reply with an emotion tag from this list: [joy], [sadness], [anger], [fear], [surprise], [disgust], [neutral], [concern]. The tag must be the very last thing on the same line. Do not forget or skip the tag. For example: "I understand how you feel. [concern]"`,
       },
       {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.TOGETHER_API_KEY}`,
-        },
-      }
-    );
+        role: "user",
+        content: "I'm feeling really down today.",
+      },
+      {
+        role: "assistant",
+        content:
+          "I'm really sorry to hear that. I'm here for you and you can always talk to me. [sadness]",
+      },
+      {
+        role: "user",
+        content: "I got an A on my exam!",
+      },
+      {
+        role: "assistant",
+        content:
+          "That's amazing! I'm so proud of you. Great job! [joy]",
+      },
+      // The rest of the user's chat history goes here dynamically
+      ...history,
+      // The current user message that triggered this request
+      { role: "user", content: message },
+    ],
+    temperature: 0.7,
+  },
+  {
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.TOGETHER_API_KEY}`,
+    },
+  }
+);
 
     const rawReply = aiResponse.data.choices[0].message.content;
 
