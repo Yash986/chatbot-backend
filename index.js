@@ -88,11 +88,8 @@ app.post("/chat", async (req, res) => {
     const rawReply = aiResponse.data.choices[0].message.content;
 
     // 5. Extract emotion from bot reply
-    const tagMatch = rawReply.match(/\[(\w+)\]\s*$/);
-    const botMood = tagMatch ? tagMatch[1].toLowerCase() : "neutral";
-    const cleanReply = tagMatch ? rawReply.replace(/\[\w+\]$/, "").trim() : rawReply;
-    console.log("Bot raw reply:", rawReply);
-    console.log("Bot mood match:", tagMatch);
+    const cleanReply = rawReply.trim();
+    const botMood = await detectEmotion(cleanReply);
 
     // 6. Add bot reply to history and save it
     history.push({ role: "assistant", content: cleanReply });
