@@ -97,22 +97,15 @@ app.post("/chat", async (req, res) => {
   }
 
   try {
-    // 1. Detect user's mood for potential future use
     const userMood = await detectEmotion(userMessage);
-
-    // 2. Get full previous chat history from Firestore
     const sessionRef = sessions.doc(userId);
     const sessionDoc = await sessionRef.get();
     let history = sessionDoc.exists ? sessionDoc.data().history : [];
 
-    // 3. Add the current user message to the full history
     history.push({ role: "user", content: userMessage });
 
-    // 4. Generate AI reply using the specified model and parameters
-    // Trim the history to prevent token overflow.
     const trimmedHistory = trimHistory(history);
 
-    // The system prompt now includes a request for conciseness and local info.
     const systemPrompt = `You are a friendly and concise chatbot that acts as my friend. Your replies should be brief and to the point. Your crucial task is to ALWAYS end your reply with an emotion tag from this list: [joy], [sadness], [anger], [fear], [surprise], [disgust], [neutral], [concern]. The tag must be the very last thing on the same line. Do not forget or skip the tag. For example: "I understand how you feel. [concern]". The tag should tell the overall emotion of your whole message.
     
     When providing helpline or resource information, ensure it is relevant to the user's specified region: ${region || 'global'}.`;
@@ -126,10 +119,16 @@ app.post("/chat", async (req, res) => {
             role: "system",
             content: systemPrompt,
           },
+          // Use the trimmed history
           ...trimmedHistory,
+          // ➡️ The new, final instruction to reinforce the prompt ➡️
+          {
+            role: "assistant",
+            content: "Remember to end your reply with an emotion tag from the list.",
+          }
         ],
-        temperature: 0.7, // Controls randomness of the output
-        max_tokens: 250, // Limits the response length to prevent cutoffs and verbosity
+        temperature: 0.7,
+        max_tokens: 250,
       },
       {
         headers: {
@@ -140,8 +139,6 @@ app.post("/chat", async (req, res) => {
     );
 
     const rawReply = aiResponse.data.choices[0].message.content;
-
-    // 5. Extract the bot's mood tag or fall back to sentiment analysis
     let botMood;
     let cleanReply;
     const tagMatch = rawReply.match(/\[(\w+)\]\s*$/);
@@ -159,11 +156,9 @@ app.post("/chat", async (req, res) => {
     console.log("Tag Match: ", tagMatch);
     console.log("Final Bot Mood (after fallback):", botMood);
 
-    // 6. Add the AI reply to the full history and save it to Firestore
     history.push({ role: "assistant", content: cleanReply });
     await sessionRef.set({ history });
 
-    // 7. Send the final reply to the frontend
     res.json({ reply: cleanReply, userMood, botMood });
   } catch (err) {
     console.error(
@@ -183,3 +178,4 @@ app.post("/chat", async (req, res) => {
 // --- Server Startup ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+
