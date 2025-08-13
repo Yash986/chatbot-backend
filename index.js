@@ -103,12 +103,13 @@ app.post("/chat", async (req, res) => {
         messages: [
           {
             role: "system",
-            content: `You are a friendly chatbot that acts as my friend. Your crucial task is to ALWAYS end your reply with an emotion tag from this list: [joy], [sadness], [anger], [fear], [surprise], [disgust], [neutral], [concern]. The tag must be the very last thing on the same line. Do not forget or skip the tag. For example: "I understand how you feel. [concern]". The tag should tell the overall emotion of your whole message.`,
+            content: `You are a friendly and concise chatbot that acts as my friend. Your crucial task is to ALWAYS end your reply with an emotion tag from this list: [joy], [sadness], [anger], [fear], [surprise], [disgust], [neutral], [concern]. The tag must be the very last thing on the same line. Do not forget or skip the tag. For example: "I understand how you feel. [concern]". The tag should tell the overall emotion of your whole message.`,
           },
           // ➡️ Use the trimmed history instead of the full history
           ...trimmedHistory,
         ],
         temperature: 0.7,
+        max_tokens: 250,
       },
       {
         headers: {
@@ -166,3 +167,4 @@ app.post("/chat", async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+
