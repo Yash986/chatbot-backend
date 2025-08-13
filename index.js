@@ -1,25 +1,36 @@
+// --- Imports and Firebase Setup ---
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const axios = require("axios");
 const admin = require("firebase-admin");
 
+// Initialize Firebase Admin SDK using a service account from environment variables
 const serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
-
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
 
+// Firestore database and collection references
 const db = admin.firestore();
 const sessions = db.collection("sessions");
 
+// Express app setup
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// A simple utility to trim chat history to prevent token overflow
-// This keeps the full history in Firestore, but sends a recent, shorter
-// version to the AI model for the current turn.
+// --- Utility Functions ---
+
+/**
+ * Trims the chat history to a specified token limit.
+ * This is crucial to prevent API token overflow errors on long conversations.
+ * The full history is still saved to Firestore, but only the recent
+ * part is sent to the AI model for the current response.
+ * @param {Array} history - The full chat history array.
+ * @param {number} maxTokens - The maximum number of tokens to include in the trimmed history.
+ * @returns {Array} - The trimmed chat history.
+ */
 function trimHistory(history, maxTokens = 15000) {
   let currentTokens = 0;
   let trimmedHistory = [];
@@ -27,7 +38,8 @@ function trimHistory(history, maxTokens = 15000) {
   // Iterate from the end of the history to keep the most recent messages
   for (let i = history.length - 1; i >= 0; i--) {
     const message = history[i];
-    // Simple token estimate: count words
+    // Simple token estimate: count words. A more accurate method could be used,
+    // but this is often sufficient for a hard limit.
     const messageTokens = message.content.split(/\s+/).length;
 
     if (currentTokens + messageTokens < maxTokens) {
@@ -41,7 +53,12 @@ function trimHistory(history, maxTokens = 15000) {
   return trimmedHistory;
 }
 
-// 🧠 Emotion detection (still used for user messages)
+/**
+ * Detects the emotion of a given message using a Hugging Face model.
+ * This is used for the chatbot's fallback mechanism and user mood detection.
+ * @param {string} message - The text message to analyze.
+ * @returns {string} - The detected emotion label (e.g., 'joy', 'anger').
+ */
 async function detectEmotion(message) {
   try {
     const response = await axios.post(
@@ -67,49 +84,52 @@ async function detectEmotion(message) {
       "Status:", err.response?.status,
       "Data:", err.response?.data
     );
-    return "neutral";
+    return "neutral"; // Fallback to 'neutral' if the API fails
   }
 }
 
-// 💬 Chat handler with memory + bot emotion tag
+// --- Main Chat Handler Route ---
 app.post("/chat", async (req, res) => {
-  const { message: userMessage, userId } = req.body;
+  const { message: userMessage, userId, region } = req.body;
 
   if (!userMessage || !userId) {
     return res.status(400).json({ error: "Missing message or userId" });
   }
 
   try {
-    // 1. Detect user's mood
+    // 1. Detect user's mood for potential future use
     const userMood = await detectEmotion(userMessage);
 
     // 2. Get full previous chat history from Firestore
     const sessionRef = sessions.doc(userId);
     const sessionDoc = await sessionRef.get();
-    let history = sessionDoc.exists ? sessionDoc.data().history : []; // Use 'let' so we can modify it
+    let history = sessionDoc.exists ? sessionDoc.data().history : [];
 
-    // 3. Add current user message to full history
+    // 3. Add the current user message to the full history
     history.push({ role: "user", content: userMessage });
 
-    // 4. Generate AI reply (with emotion tagging system)
-    // ➡️ Use the trimHistory function here to prevent token overflow
+    // 4. Generate AI reply using the specified model and parameters
+    // Trim the history to prevent token overflow.
     const trimmedHistory = trimHistory(history);
+
+    // The system prompt now includes a request for conciseness and local info.
+    const systemPrompt = `You are a friendly and concise chatbot that acts as my friend. Your replies should be brief and to the point. Your crucial task is to ALWAYS end your reply with an emotion tag from this list: [joy], [sadness], [anger], [fear], [surprise], [disgust], [neutral], [concern]. The tag must be the very last thing on the same line. Do not forget or skip the tag. For example: "I understand how you feel. [concern]". The tag should tell the overall emotion of your whole message.
+    
+    When providing helpline or resource information, ensure it is relevant to the user's specified region: ${region || 'global'}.`;
 
     const aiResponse = await axios.post(
       "https://api.together.xyz/v1/chat/completions",
       {
-        // ➡️ Changed the model to a powerful alternative
         model: "mistralai/Mixtral-8x7B-Instruct-v0.1",
         messages: [
           {
             role: "system",
-            content: `You are a friendly and concise chatbot that acts as my friend. Your crucial task is to ALWAYS end your reply with an emotion tag from this list: [joy], [sadness], [anger], [fear], [surprise], [disgust], [neutral], [concern]. The tag must be the very last thing on the same line. Do not forget or skip the tag. For example: "I understand how you feel. [concern]". The tag should tell the overall emotion of your whole message.`,
+            content: systemPrompt,
           },
-          // ➡️ Use the trimmed history instead of the full history
           ...trimmedHistory,
         ],
-        temperature: 0.7,
-        max_tokens: 250,
+        temperature: 0.7, // Controls randomness of the output
+        max_tokens: 250, // Limits the response length to prevent cutoffs and verbosity
       },
       {
         headers: {
@@ -121,33 +141,29 @@ app.post("/chat", async (req, res) => {
 
     const rawReply = aiResponse.data.choices[0].message.content;
 
-    // 5. Extract [mood] from AI message OR detect it if missing
+    // 5. Extract the bot's mood tag or fall back to sentiment analysis
     let botMood;
     let cleanReply;
-
     const tagMatch = rawReply.match(/\[(\w+)\]\s*$/);
 
     if (tagMatch) {
-      // If tag is found, extract it and clean the reply
       botMood = tagMatch[1].toLowerCase();
       cleanReply = rawReply.replace(/\[\w+\]\s*$/, "").trim();
     } else {
-      // If NO tag is found by the regex, use sentiment analysis on the whole reply
       console.log("Bot forgot the tag. Detecting mood from message content...");
-      botMood = await detectEmotion(rawReply); // <-- Fallback to sentiment analysis
-      cleanReply = rawReply.trim(); // No tag to remove from the reply itself
+      botMood = await detectEmotion(rawReply);
+      cleanReply = rawReply.trim();
     }
 
     console.log("Raw reply: ", rawReply);
-    console.log("Tag Match: ", tagMatch); // Will be null if tag was not found
-    console.log("Final Bot Mood (after fallback):", botMood); // Debug log
+    console.log("Tag Match: ", tagMatch);
+    console.log("Final Bot Mood (after fallback):", botMood);
 
-    // 6. Add AI reply to the full history (before saving to Firebase)
+    // 6. Add the AI reply to the full history and save it to Firestore
     history.push({ role: "assistant", content: cleanReply });
-    // Save the full history to Firestore
     await sessionRef.set({ history });
 
-    // 7. Send reply
+    // 7. Send the final reply to the frontend
     res.json({ reply: cleanReply, userMood, botMood });
   } catch (err) {
     console.error(
@@ -164,7 +180,6 @@ app.post("/chat", async (req, res) => {
   }
 });
 
-
+// --- Server Startup ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
-
