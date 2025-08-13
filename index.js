@@ -17,6 +17,30 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
+// A simple utility to trim chat history to prevent token overflow
+// This keeps the full history in Firestore, but sends a recent, shorter
+// version to the AI model for the current turn.
+function trimHistory(history, maxTokens = 15000) {
+  let currentTokens = 0;
+  let trimmedHistory = [];
+
+  // Iterate from the end of the history to keep the most recent messages
+  for (let i = history.length - 1; i >= 0; i--) {
+    const message = history[i];
+    // Simple token estimate: count words
+    const messageTokens = message.content.split(/\s+/).length;
+
+    if (currentTokens + messageTokens < maxTokens) {
+      trimmedHistory.unshift(message); // Add to the beginning of the new array
+      currentTokens += messageTokens;
+    } else {
+      break; // Stop when the limit is reached
+    }
+  }
+
+  return trimmedHistory;
+}
+
 // 🧠 Emotion detection (still used for user messages)
 async function detectEmotion(message) {
   try {
@@ -68,36 +92,21 @@ app.post("/chat", async (req, res) => {
     history.push({ role: "user", content: userMessage });
 
     // 4. Generate AI reply (with emotion tagging system)
+    // ➡️ Use the trimHistory function here to prevent token overflow
+    const trimmedHistory = trimHistory(history);
+
     const aiResponse = await axios.post(
       "https://api.together.xyz/v1/chat/completions",
       {
-        model: "meta-llama/Llama-3-8b-chat-hf", // Using LLaMA 3 8B
+        // ➡️ Changed the model to a powerful alternative
+        model: "mistralai/Mixtral-8x7B-Instruct-v0.1",
         messages: [
           {
             role: "system",
             content: `You are a friendly chatbot that acts as my friend. Your crucial task is to ALWAYS end your reply with an emotion tag from this list: [joy], [sadness], [anger], [fear], [surprise], [disgust], [neutral], [concern]. The tag must be the very last thing on the same line. Do not forget or skip the tag. For example: "I understand how you feel. [concern]". The tag should tell the overall emotion of your whole message.`,
           },
-          {
-            role: "user",
-            content: "I'm feeling really down today.",
-          },
-          {
-            role: "assistant",
-            content:
-              "I'm really sorry to hear that. I'm here for you and you can always talk to me. [concern]",
-          },
-          {
-            role: "user",
-            content: "I got an A on my exam!",
-          },
-          {
-            role: "assistant",
-            content:
-              "That's amazing! I'm so proud of you. Great job! [joy]",
-          },
-          // Use the full history as requested
-          ...history, // <--- Using full history as per your instruction
-          // The current user message is already included as the last element in history
+          // ➡️ Use the trimmed history instead of the full history
+          ...trimmedHistory,
         ],
         temperature: 0.7,
       },
@@ -154,28 +163,6 @@ app.post("/chat", async (req, res) => {
   }
 });
 
-app.get("/test-key", async (req, res) => {
-  try {
-    const result = await axios.post(
-      "https://api.together.xyz/v1/chat/completions",
-      {
-        model: "meta-llama/Llama-3-8b-chat-hf",
-        messages: [{ role: "user", content: "Say hello [joy]" }],
-        temperature: 0.7,
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.TOGETHER_API_KEY}`,
-        },
-      }
-    );
-    res.send(result.data);
-  } catch (err) {
-    console.error("Key test failed:", err.response?.data || err.message);
-    res.status(500).json({ error: "Invalid key or model access" });
-  }
-});
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
