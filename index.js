@@ -70,7 +70,6 @@ app.post("/chat", async (req, res) => {
 
     const trimmedHistory = trimHistory(history);
 
-    // ➡️ The final, simplified prompt without the example ➡️
     const combinedPrompt = `
 [INSTRUCTIONS]
 You are a friendly and concise chatbot that acts as my friend.
@@ -126,14 +125,17 @@ ${userMessage}
       cleanReply = rawReply.trim();
     }
 
-    console.log("Raw reply: ", rawReply);
-    console.log("Tag Match: ", tagMatch);
+    // ➡️ This is the crucial new step: make sure a tag is always appended to the final message ➡️
+    const finalReplyWithTag = `${cleanReply} [${botMood}]`;
+
+    console.log("Raw reply:", rawReply);
+    console.log("Tag Match:", tagMatch);
     console.log("Final Bot Mood (after fallback):", botMood);
 
     history.push({ role: "assistant", content: cleanReply });
     await sessionRef.set({ history });
 
-    res.json({ reply: cleanReply, userMood, botMood });
+    res.json({ reply: finalReplyWithTag, userMood, botMood });
   } catch (err) {
     console.error(
       "Chat error:",
@@ -142,9 +144,9 @@ ${userMessage}
       "Data:", err.response?.data
     );
     res.status(500).json({
-      reply: "Sorry, I couldn’t reach my brain right now 😞",
+      reply: "Sorry, I couldn’t reach my brain right now 😞 [sadness]",
       userMood: "neutral",
-      botMood: "neutral",
+      botMood: "sadness",
     });
   }
 });
@@ -152,5 +154,6 @@ ${userMessage}
 // --- Server Startup ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+
 
 
