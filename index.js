@@ -55,43 +55,53 @@ async function detectEmotion(message) {
 }
 app.post("/chat", async (req, res) => {
   const { message: userMessage, userId, region } = req.body;
+
   if (!userMessage || !userId) {
     return res.status(400).json({ error: "Missing message or userId" });
   }
+
   try {
     const userMood = await detectEmotion(userMessage);
     const sessionRef = sessions.doc(userId);
     const sessionDoc = await sessionRef.get();
     let history = sessionDoc.exists ? sessionDoc.data().history : [];
+
     history.push({ role: "user", content: userMessage });
+
     const trimmedHistory = trimHistory(history);
-    const systemPrompt = `
-    [INSTRUCTIONS]
-    You are a friendly and concise chatbot that acts as my friend.
-    Your replies should be brief and to the point.
-    When providing helpline or resource information, ensure it is relevant to the user's specified region: ${region || 'global'}.
-    
-    [RULES]
-    Your crucial task is to ALWAYS end your reply with an emotion tag.
-    The tag MUST be one from this list: [joy], [sadness], [anger], [fear], [surprise], [disgust], [neutral], [concern].
-    The tag MUST be the very last thing on the same line, with no extra characters.
-    Only ONE tag should be present in the entire message.
-    Do not forget or skip the tag.
-    
-    Example of a correct response: "I'm here for you and you can always talk to me. [concern]"
-    
-    Your response MUST follow these rules exactly.
-    `;
+
+    // ➡️ The new, combined prompt ➡️
+    const combinedPrompt = `
+[INSTRUCTIONS]
+You are a friendly and concise chatbot that acts as my friend.
+Your replies should be brief and to the point.
+When providing helpline or resource information, ensure it is relevant to the user's specified region: ${region || 'global'}.
+
+[RULES]
+Your crucial task is to ALWAYS end your reply with an emotion tag.
+The tag MUST be one from this list: [joy], [sadness], [anger], [fear], [surprise], [disgust], [neutral], [concern].
+The tag MUST be the very last thing on the same line, with no extra characters.
+Only ONE tag should be present in the entire message.
+Do not forget or skip the tag.
+
+[CHAT HISTORY]
+${trimmedHistory.map(m => `${m.role}: ${m.content}`).join('\n')}
+
+[USER MESSAGE]
+${userMessage}
+
+[RESPONSE]
+`;
+
     const aiResponse = await axios.post(
       "https://api.together.xyz/v1/chat/completions",
       {
         model: "mistralai/Mixtral-8x7B-Instruct-v0.1",
         messages: [
           {
-            role: "system",
-            content: systemPrompt,
+            role: "user",
+            content: combinedPrompt,
           },
-          ...trimmedHistory,
         ],
         temperature: 0.7,
         max_tokens: 250,
@@ -108,6 +118,7 @@ app.post("/chat", async (req, res) => {
     let botMood;
     let cleanReply;
     const tagMatch = rawReply.match(/\[(\w+)\]\s*$/);
+
     if (tagMatch) {
       botMood = tagMatch[1].toLowerCase();
       cleanReply = rawReply.replace(/\[\w+\]\s*$/).trim();
@@ -116,11 +127,14 @@ app.post("/chat", async (req, res) => {
       botMood = await detectEmotion(rawReply);
       cleanReply = rawReply.trim();
     }
+
     console.log("Raw reply: ", rawReply);
     console.log("Tag Match: ", tagMatch);
     console.log("Final Bot Mood (after fallback):", botMood);
+
     history.push({ role: "assistant", content: cleanReply });
     await sessionRef.set({ history });
+
     res.json({ reply: cleanReply, userMood, botMood });
   } catch (err) {
     console.error(
@@ -140,4 +154,3 @@ app.post("/chat", async (req, res) => {
 // --- Server Startup ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
-
