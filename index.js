@@ -104,6 +104,10 @@ ${userMessage}
         max_tokens: 250,
       },
       {
+        role: "assistant",
+        content: "Remember to always end your reply with a single emotion tag from the list. Do not include example sentences.",
+      }
+      {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${process.env.TOGETHER_API_KEY}`,
@@ -155,3 +159,4 @@ ${userMessage}
 // --- Server Startup ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+
