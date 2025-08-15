@@ -125,7 +125,9 @@ ${userMessage}
       cleanReply = rawReply.trim();
     }
 
-    // ➡️ This is the crucial new step: make sure a tag is always appended to the final message ➡️
+    // ➡️ The new crucial step: remove "undefined" if it appears in the reply ➡️
+    cleanReply = cleanReply.replace(/\s*undefined\s*/g, '');
+
     const finalReplyWithTag = `${cleanReply} [${botMood}]`;
 
     console.log("Raw reply:", rawReply);
@@ -150,10 +152,6 @@ ${userMessage}
     });
   }
 });
-
 // --- Server Startup ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
-
-
-
