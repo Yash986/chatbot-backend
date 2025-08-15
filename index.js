@@ -1,64 +1,32 @@
-// --- Imports and Firebase Setup ---
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const axios = require("axios");
 const admin = require("firebase-admin");
-
-// Initialize Firebase Admin SDK using a service account from environment variables
 const serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
-
-// Firestore database and collection references
 const db = admin.firestore();
 const sessions = db.collection("sessions");
-
-// Express app setup
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
-
-// --- Utility Functions ---
-
-/**
- * Trims the chat history to a specified token limit.
- * This is crucial to prevent API token overflow errors on long conversations.
- * The full history is still saved to Firestore, but only the recent
- * part is sent to the AI model for the current response.
- * @param {Array} history - The full chat history array.
- * @param {number} maxTokens - The maximum number of tokens to include in the trimmed history.
- * @returns {Array} - The trimmed chat history.
- */
 function trimHistory(history, maxTokens = 15000) {
   let currentTokens = 0;
   let trimmedHistory = [];
-
-  // Iterate from the end of the history to keep the most recent messages
   for (let i = history.length - 1; i >= 0; i--) {
     const message = history[i];
-    // Simple token estimate: count words. A more accurate method could be used,
-    // but this is often sufficient for a hard limit.
     const messageTokens = message.content.split(/\s+/).length;
-
     if (currentTokens + messageTokens < maxTokens) {
-      trimmedHistory.unshift(message); // Add to the beginning of the new array
+      trimmedHistory.unshift(message);
       currentTokens += messageTokens;
     } else {
-      break; // Stop when the limit is reached
+      break;
     }
   }
-
   return trimmedHistory;
 }
-
-/**
- * Detects the emotion of a given message using a Hugging Face model.
- * This is used for the chatbot's fallback mechanism and user mood detection.
- * @param {string} message - The text message to analyze.
- * @returns {string} - The detected emotion label (e.g., 'joy', 'anger').
- */
 async function detectEmotion(message) {
   try {
     const response = await axios.post(
@@ -70,13 +38,11 @@ async function detectEmotion(message) {
         },
       }
     );
-
     const predictions = response.data[0];
     const top = predictions.reduce((prev, curr) =>
       prev.score > curr.score ? prev : curr
     );
-
-    return top.label.toLowerCase(); // e.g. joy, anger
+    return top.label.toLowerCase();
   } catch (err) {
     console.error(
       "Emotion detection error:",
@@ -84,32 +50,38 @@ async function detectEmotion(message) {
       "Status:", err.response?.status,
       "Data:", err.response?.data
     );
-    return "neutral"; // Fallback to 'neutral' if the API fails
+    return "neutral";
   }
 }
-
-// --- Main Chat Handler Route ---
 app.post("/chat", async (req, res) => {
   const { message: userMessage, userId, region } = req.body;
-
   if (!userMessage || !userId) {
     return res.status(400).json({ error: "Missing message or userId" });
   }
-
   try {
     const userMood = await detectEmotion(userMessage);
     const sessionRef = sessions.doc(userId);
     const sessionDoc = await sessionRef.get();
     let history = sessionDoc.exists ? sessionDoc.data().history : [];
-
     history.push({ role: "user", content: userMessage });
-
     const trimmedHistory = trimHistory(history);
-
-    const systemPrompt = `You are a friendly and concise chatbot that acts as my friend. Your replies should be brief and to the point. Your crucial task is to ALWAYS end your reply with an emotion tag from this list: [joy], [sadness], [anger], [fear], [surprise], [disgust], [neutral], [concern]. The tag must be the very last thing on the same line. Do not forget or skip the tag. For example: "I understand how you feel. [concern]". The tag should tell the overall emotion of your whole message.
+    const systemPrompt = `
+    [INSTRUCTIONS]
+    You are a friendly and concise chatbot that acts as my friend.
+    Your replies should be brief and to the point.
+    When providing helpline or resource information, ensure it is relevant to the user's specified region: ${region || 'global'}.
     
-    When providing helpline or resource information, ensure it is relevant to the user's specified region: ${region || 'global'}.`;
-
+    [RULES]
+    Your crucial task is to ALWAYS end your reply with an emotion tag.
+    The tag MUST be one from this list: [joy], [sadness], [anger], [fear], [surprise], [disgust], [neutral], [concern].
+    The tag MUST be the very last thing on the same line, with no extra characters.
+    Only ONE tag should be present in the entire message.
+    Do not forget or skip the tag.
+    
+    Example of a correct response: "I'm here for you and you can always talk to me. [concern]"
+    
+    Your response MUST follow these rules exactly.
+    `;
     const aiResponse = await axios.post(
       "https://api.together.xyz/v1/chat/completions",
       {
@@ -120,14 +92,9 @@ app.post("/chat", async (req, res) => {
             content: systemPrompt,
           },
           ...trimmedHistory,
-          // ➡️ Updated final instruction: more direct and concise ➡️
-          {
-            role: "assistant",
-            content: "Remember to end your reply with a single emotion tag from the list. Do not include example sentences.",
-          }
         ],
         temperature: 0.7,
-        max_tokens: 100,
+        max_tokens: 250,
       },
       {
         headers: {
@@ -141,7 +108,6 @@ app.post("/chat", async (req, res) => {
     let botMood;
     let cleanReply;
     const tagMatch = rawReply.match(/\[(\w+)\]\s*$/);
-
     if (tagMatch) {
       botMood = tagMatch[1].toLowerCase();
       cleanReply = rawReply.replace(/\[\w+\]\s*$/).trim();
@@ -150,14 +116,11 @@ app.post("/chat", async (req, res) => {
       botMood = await detectEmotion(rawReply);
       cleanReply = rawReply.trim();
     }
-
     console.log("Raw reply: ", rawReply);
     console.log("Tag Match: ", tagMatch);
     console.log("Final Bot Mood (after fallback):", botMood);
-
     history.push({ role: "assistant", content: cleanReply });
     await sessionRef.set({ history });
-
     res.json({ reply: cleanReply, userMood, botMood });
   } catch (err) {
     console.error(
@@ -177,3 +140,4 @@ app.post("/chat", async (req, res) => {
 // --- Server Startup ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+
