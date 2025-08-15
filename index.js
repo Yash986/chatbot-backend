@@ -96,7 +96,7 @@ ${userMessage}
     const aiResponse = await axios.post(
       "https://api.together.xyz/v1/chat/completions",
       {
-        model: "mistralai/Mixtral-8x7B-Instruct-v0.1",
+        model: "meta-llama/Llama-3-8b-chat-hf",
         messages: [
           {
             role: "user",
@@ -154,3 +154,4 @@ ${userMessage}
 // --- Server Startup ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+
