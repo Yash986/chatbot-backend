@@ -119,12 +119,11 @@ app.post("/chat", async (req, res) => {
             role: "system",
             content: systemPrompt,
           },
-          // Use the trimmed history
           ...trimmedHistory,
-          // ➡️ The new, final instruction to reinforce the prompt ➡️
+          // ➡️ Updated final instruction: more direct and concise ➡️
           {
             role: "assistant",
-            content: "Remember to end your reply with an emotion tag that tells the overall emotion of your reply from the list. The list is [joy], [sadness], [anger], [fear], [surprise], [disgust], [neutral], [concern]. The tag must be the very last thing of the whole reply. There should only be one tag in the entire message.",
+            content: "Remember to end your reply with a single emotion tag from the list. Do not include example sentences.",
           }
         ],
         temperature: 0.7,
