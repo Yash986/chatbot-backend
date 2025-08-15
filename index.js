@@ -70,7 +70,7 @@ app.post("/chat", async (req, res) => {
 
     const trimmedHistory = trimHistory(history);
 
-    // ➡️ The new, combined prompt ➡️
+    // ➡️ The final, simplified prompt without the example ➡️
     const combinedPrompt = `
 [INSTRUCTIONS]
 You are a friendly and concise chatbot that acts as my friend.
@@ -89,14 +89,12 @@ ${trimmedHistory.map(m => `${m.role}: ${m.content}`).join('\n')}
 
 [USER MESSAGE]
 ${userMessage}
-
-[RESPONSE]
 `;
 
     const aiResponse = await axios.post(
       "https://api.together.xyz/v1/chat/completions",
       {
-        model: "meta-llama/Llama-3-8b-chat-hf",
+        model: "mistralai/Mixtral-8x7B-Instruct-v0.1",
         messages: [
           {
             role: "user",
@@ -154,4 +152,5 @@ ${userMessage}
 // --- Server Startup ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+
 
