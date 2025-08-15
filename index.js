@@ -128,7 +128,7 @@ app.post("/chat", async (req, res) => {
           }
         ],
         temperature: 0.7,
-        max_tokens: 250,
+        max_tokens: 100,
       },
       {
         headers: {
@@ -178,5 +178,6 @@ app.post("/chat", async (req, res) => {
 // --- Server Startup ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+
 
 
