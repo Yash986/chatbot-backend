@@ -145,7 +145,7 @@ app.post("/chat", async (req, res) => {
 
     if (tagMatch) {
       botMood = tagMatch[1].toLowerCase();
-      cleanReply = rawReply.replace(/\[\w+\]\s*$/, "").trim();
+      cleanReply = rawReply.replace(/\[\w+\]\s*$/).trim();
     } else {
       console.log("Bot forgot the tag. Detecting mood from message content...");
       botMood = await detectEmotion(rawReply);
@@ -178,4 +178,5 @@ app.post("/chat", async (req, res) => {
 // --- Server Startup ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+
 
