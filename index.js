@@ -89,7 +89,6 @@ ${trimmedHistory.map(m => `${m.role}: ${m.content}`).join('\n')}
 [USER MESSAGE]
 ${userMessage}
 `;
-
     const aiResponse = await axios.post(
       "https://api.together.xyz/v1/chat/completions",
       {
@@ -99,14 +98,15 @@ ${userMessage}
             role: "user",
             content: combinedPrompt,
           },
+          // Re-added assistant message to reinforce the tag instruction
+          {
+            role: "assistant",
+            content: "Remember to always end your reply with a single emotion tag from the list. Do not include example sentences."
+          }
         ],
         temperature: 0.7,
         max_tokens: 250,
       },
-      {
-        role: "assistant",
-        content: "Remember to always end your reply with a single emotion tag from the list. Do not include example sentences.",
-      }
       {
         headers: {
           "Content-Type": "application/json",
@@ -128,9 +128,6 @@ ${userMessage}
       botMood = await detectEmotion(rawReply);
       cleanReply = rawReply.trim();
     }
-
-    // ➡️ The new crucial step: remove "undefined" if it appears in the reply ➡️
-    cleanReply = cleanReply.replace(/\s*undefined\s*/g, '');
 
     const finalReplyWithTag = `${cleanReply} [${botMood}]`;
 
@@ -159,4 +156,3 @@ ${userMessage}
 // --- Server Startup ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
-
