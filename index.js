@@ -124,7 +124,7 @@ app.post("/chat", async (req, res) => {
           // ➡️ The new, final instruction to reinforce the prompt ➡️
           {
             role: "assistant",
-            content: "Remember to end your reply with an emotion tag from the list.",
+            content: "Remember to end your reply with an emotion tag that tells the overall emotion of your reply from the list. The list is [joy], [sadness], [anger], [fear], [surprise], [disgust], [neutral], [concern]. The tag must be the very last thing on the same line.",
           }
         ],
         temperature: 0.7,
@@ -178,6 +178,7 @@ app.post("/chat", async (req, res) => {
 // --- Server Startup ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+
 
 
 
