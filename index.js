@@ -91,11 +91,6 @@ Do not forget or skip the tag.
             role: "user",
             content: combinedPrompt,
           },
-          // Re-added assistant message to reinforce the tag instruction
-          {
-            role: "assistant",
-            content: "Remember to always end your reply with a single emotion tag from the list. Do not include example sentences."
-          }
         ],
         temperature: 0.7,
         max_tokens: 250,
@@ -143,4 +138,3 @@ Do not forget or skip the tag.
 // --- Server Startup ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
-
