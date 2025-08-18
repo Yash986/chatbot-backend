@@ -122,23 +122,17 @@ ${userMessage}
 
     if (tagMatch) {
       botMood = tagMatch[1].toLowerCase();
-      cleanReply = rawReply.replace(/\[\w+\]\s*$/).trim();
+      cleanReply = rawReply.replace(/\[\w+\]\s*$/, '').trim();
     } else {
       console.log("Bot forgot the tag. Detecting mood from message content...");
       botMood = await detectEmotion(rawReply);
       cleanReply = rawReply.trim();
     }
 
-    const finalReplyWithTag = `${cleanReply} [${botMood}]`;
-
-    console.log("Raw reply:", rawReply);
-    console.log("Tag Match:", tagMatch);
-    console.log("Final Bot Mood (after fallback):", botMood);
-
     history.push({ role: "assistant", content: cleanReply });
     await sessionRef.set({ history });
 
-    res.json({ reply: finalReplyWithTag, userMood, botMood });
+    res.json({ reply: cleanReply, userMood, botMood });
   } catch (err) {
     console.error(
       "Chat error:",
@@ -147,7 +141,7 @@ ${userMessage}
       "Data:", err.response?.data
     );
     res.status(500).json({
-      reply: "Sorry, I couldn’t reach my brain right now 😞 [sadness]",
+      reply: "Sorry, I couldn’t reach my brain right now 😞",
       userMood: "neutral",
       botMood: "sadness",
     });
