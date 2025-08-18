@@ -78,7 +78,7 @@ Your replies should be brief and to the point.
 [RULES]
 Your crucial task is to ALWAYS end your reply with an emotion tag.
 The tag MUST be one from this list: [joy], [sadness], [anger], [fear], [surprise], [disgust], [neutral], [concern].
-The tag MUST be the very last thing on the same line, with no extra characters.
+The tag MUST be the very last thing of the message with nothing after it.
 Only ONE tag should be present in the entire message.
 Do not forget or skip the tag.
 
@@ -147,5 +147,6 @@ ${userMessage}
 // --- Server Startup ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+
 
 
