@@ -81,6 +81,12 @@ The tag MUST be one from this list: [joy], [sadness], [anger], [fear], [surprise
 The tag MUST be the very last thing on the same line, with no extra characters.
 Only ONE tag should be present in the entire message.
 Do not forget or skip the tag.
+
+[CHAT HISTORY]
+${trimmedHistory.map(m => `${m.role}: ${m.content}`).join('\n')}
+
+[USER MESSAGE]
+${userMessage}
 `;
     const aiResponse = await axios.post(
       "https://api.together.xyz/v1/chat/completions",
@@ -141,4 +147,5 @@ Do not forget or skip the tag.
 // --- Server Startup ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+
 
