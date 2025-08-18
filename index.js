@@ -116,6 +116,9 @@ Do not forget or skip the tag.
       botMood = await detectEmotion(rawReply);
       cleanReply = rawReply.trim();
     }
+    console.log("Raw reply:", rawReply);
+    console.log("Tag Match:", tagMatch);
+    console.log("Final Bot Mood (after fallback):", botMood);
 
     history.push({ role: "assistant", content: cleanReply });
     await sessionRef.set({ history });
@@ -138,3 +141,4 @@ Do not forget or skip the tag.
 // --- Server Startup ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+
