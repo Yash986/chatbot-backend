@@ -3,150 +3,124 @@ const cors = require("cors");
 const bodyParser = require("body-parser");
 const axios = require("axios");
 const admin = require("firebase-admin");
-const serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
+
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
+  credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_CONFIG)),
 });
+
 const db = admin.firestore();
 const sessions = db.collection("sessions");
+
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
+
+/* ------------------------- UTIL FUNCTIONS ------------------------- */
+
 function trimHistory(history, maxTokens = 15000) {
-  let currentTokens = 0;
-  let trimmedHistory = [];
+  let tokens = 0;
+  const trimmed = [];
+
   for (let i = history.length - 1; i >= 0; i--) {
-    const message = history[i];
-    const messageTokens = message.content.split(/\s+/).length;
-    if (currentTokens + messageTokens < maxTokens) {
-      trimmedHistory.unshift(message);
-      currentTokens += messageTokens;
-    } else {
-      break;
-    }
+    const t = history[i].content.split(/\s+/).length;
+    if (tokens + t > maxTokens) break;
+    trimmed.unshift(history[i]);
+    tokens += t;
   }
-  return trimmedHistory;
+
+  return trimmed;
 }
-async function detectEmotion(message) {
+
+async function detectEmotion(text) {
   try {
-    const response = await axios.post(
+    const res = await axios.post(
       "https://api-inference.huggingface.co/models/j-hartmann/emotion-english-distilroberta-base",
-      { inputs: message },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
-        },
-      }
+      { inputs: text },
+      { headers: { Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}` } }
     );
-    const predictions = response.data[0];
-    const top = predictions.reduce((prev, curr) =>
-      prev.score > curr.score ? prev : curr
-    );
+
+    const top = res.data[0].reduce((a, b) => (a.score > b.score ? a : b));
     return top.label.toLowerCase();
-  } catch (err) {
-    console.error(
-      "Emotion detection error:",
-      err.message,
-      "Status:", err.response?.status,
-      "Data:", err.response?.data
-    );
+  } catch {
     return "neutral";
   }
 }
-app.post("/chat", async (req, res) => {
-  const { message: userMessage, userId, region } = req.body;
 
-  if (!userMessage || !userId) {
+function extractEmotionTag(raw) {
+  const match = raw.match(/\[(\w+)\]\s*$/);
+  if (!match) return { clean: raw.trim(), tag: null };
+
+  const tag = match[1].toLowerCase();
+  const clean = raw.replace(/\[\w+\]\s*$/, "").trim();
+
+  return { clean, tag };
+}
+
+/* ----------------------------- ROUTE ------------------------------ */
+
+app.post("/chat", async (req, res) => {
+  const { userId, message } = req.body;
+  if (!userId || !message)
     return res.status(400).json({ error: "Missing message or userId" });
-  }
 
   try {
-    const userMood = await detectEmotion(userMessage);
-    const sessionRef = sessions.doc(userId);
-    const sessionDoc = await sessionRef.get();
-    let history = sessionDoc.exists ? sessionDoc.data().history : [];
+    // Load + update history
+    const doc = await sessions.doc(userId).get();
+    let history = doc.exists ? doc.data().history : [];
+    history.push({ role: "user", content: message });
 
-    history.push({ role: "user", content: userMessage });
+    // Emotion detection for user
+    const userMood = await detectEmotion(message);
 
-    const trimmedHistory = trimHistory(history);
+    // Trim history
+    const trimmed = trimHistory(history);
 
-    const combinedPrompt = `
-[INSTRUCTIONS]
-You are a friendly and concise chatbot that acts as my friend.
-Your replies should be brief and to the point.
+    // Build prompt
+    const prompt = `
+You are a friendly and concise chatbot friend.
+Always end your reply with ONE emotion tag:
+[joy] [sadness] [anger] [fear] [surprise] [disgust] [neutral] [concern]
 
-[RULES]
-Your crucial task is to ALWAYS end your reply with an emotion tag.
-The tag MUST be one from this list: [joy], [sadness], [anger], [fear], [surprise], [disgust], [neutral], [concern].
-The tag MUST be the very last thing of the message with nothing after it.
-Only ONE tag should be present in the entire message.
-Do not forget or skip the tag.
+Chat History:
+${trimmed.map(m => `${m.role}: ${m.content}`).join("\n")}
 
-[CHAT HISTORY]
-${trimmedHistory.map(m => `${m.role}: ${m.content}`).join('\n')}
-
-[USER MESSAGE]
-${userMessage}
+User: ${message}
 `;
-    const aiResponse = await axios.post(
+
+    // Call Together API
+    const ai = await axios.post(
       "https://api.together.xyz/v1/chat/completions",
       {
         model: "mistralai/Mixtral-8x7B-Instruct-v0.1",
-        messages: [
-          {
-            role: "user",
-            content: combinedPrompt,
-          },
-        ],
+        messages: [{ role: "user", content: prompt }],
         temperature: 0.7,
         max_tokens: 250,
       },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.TOGETHER_API_KEY}`,
-        },
-      }
+      { headers: { Authorization: `Bearer ${process.env.TOGETHER_API_KEY}` } }
     );
 
-    const rawReply = aiResponse.data.choices[0].message.content;
-    let botMood;
-    let cleanReply;
-    const tagMatch = rawReply.match(/\[(\w+)\]\s*$/);
+    const rawReply = ai.data.choices[0].message.content;
 
-    if (tagMatch) {
-      botMood = tagMatch[1].toLowerCase();
-      cleanReply = rawReply.replace(/\[\w+\]\s*$/, '').trim();
-    } else {
-      console.log("Bot forgot the tag. Detecting mood from message content...");
-      botMood = await detectEmotion(rawReply);
-      cleanReply = rawReply.trim();
-    }
-    console.log("Raw reply:", rawReply);
-    console.log("Tag Match:", tagMatch);
-    console.log("Final Bot Mood (after fallback):", botMood);
+    // Extract tag
+    let { clean, tag } = extractEmotionTag(rawReply);
 
-    history.push({ role: "assistant", content: cleanReply });
-    await sessionRef.set({ history });
+    // Fallback if missing
+    if (!tag) tag = await detectEmotion(rawReply);
 
-    res.json({ reply: cleanReply, userMood, botMood });
+    // Save assistant reply (cleaned)
+    history.push({ role: "assistant", content: clean });
+    await sessions.doc(userId).set({ history });
+
+    res.json({ reply: clean, userMood, botMood: tag });
   } catch (err) {
-    console.error(
-      "Chat error:",
-      err.message,
-      "Status:", err.response?.status,
-      "Data:", err.response?.data
-    );
     res.status(500).json({
-      reply: "Sorry, I couldn’t reach my brain right now 😞",
+      reply: "Sorry, I ran into an issue 😞",
       userMood: "neutral",
       botMood: "sadness",
     });
   }
 });
-// --- Server Startup ---
+
+/* ----------------------------- SERVER ----------------------------- */
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
-
-
-
+app.listen(PORT, () => console.log(`Server running on ${PORT}`));
