@@ -82,7 +82,11 @@ Always end your reply with ONE emotion tag:
 [joy] [sadness] [anger] [fear] [surprise] [disgust] [neutral] [concern]
 
 Chat History:
-${trimmed.map(m => `${m.role}: ${m.content}`).join("\n")}
+${trimmed.map(m =>
+  m.role === "assistant"
+    ? `Bot: ${m.content}`
+    : `User: ${m.content}`
+).join("\n")}
 
 User: ${message}
 `;
@@ -124,3 +128,4 @@ User: ${message}
 /* ----------------------------- SERVER ----------------------------- */
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on ${PORT}`));
+
