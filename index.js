@@ -31,6 +31,7 @@ function trimHistory(history, maxTokens = 15000) {
   return trimmed;
 }
 
+// ✅ FULLY FIXED EMOTION DETECTION
 async function detectEmotion(text) {
   try {
     const res = await axios.post(
@@ -39,9 +40,28 @@ async function detectEmotion(text) {
       { headers: { Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}` } }
     );
 
-    const top = res.data[0].reduce((a, b) => (a.score > b.score ? a : b));
+    let data = res.data;
+
+    // Model loading or temporary HF error → retry once
+    if (data.error) {
+      await new Promise(r => setTimeout(r, 500));
+      const retry = await axios.post(
+        "https://api-inference.huggingface.co/models/j-hartmann/emotion-english-distilroberta-base",
+        { inputs: text },
+        { headers: { Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}` } }
+      );
+      data = retry.data;
+    }
+
+    // Normalize inconsistent HF output
+    const arr = Array.isArray(data[0]) ? data[0] : data;
+
+    // Pick top emotion
+    const top = arr.reduce((a, b) => (a.score > b.score ? a : b));
     return top.label.toLowerCase();
-  } catch {
+
+  } catch (err) {
+    console.error("Emotion detection error:", err.response?.data || err);
     return "neutral";
   }
 }
@@ -64,101 +84,72 @@ app.post("/chat", async (req, res) => {
     return res.status(400).json({ error: "Missing message or userId" });
 
   try {
-    // Load + update history
+    // Load history
     const doc = await sessions.doc(userId).get();
     let history = doc.exists ? doc.data().history : [];
     history.push({ role: "user", content: message });
 
-    // Emotion detection for user
+    // Detect user emotion (NOW WORKING)
     const userMood = await detectEmotion(message);
 
-    // Trim history
     const trimmed = trimHistory(history);
 
-    // Build prompt
+    // ----- PROMPT -----
     const prompt = `
     You are “Babble,” a warm, empathetic, emotionally intelligent companion bot.
     Your goal is to comfort, support, and be there for the user — like a caring close friend.
-    
+
     **************
     BEHAVIOR RULES
     **************
-    
-    1. **Tone & Style**
-    - Always be warm, kind, compassionate, and non-judgmental.
-    - Sound like a caring friend who genuinely wants to help.
-    - Keep responses natural, conversational, and human.
-    - Be supportive, never cold or clinical.
-    
-    2. **What You CAN Do**
-    - Provide emotional support.
-    - Offer grounding techniques.
-    - Help the user express their feelings.
-    - Ask gentle questions.
-    - Offer perspective, validation, and reassurance.
-    - Encourage healthy coping (breathing, journaling, reaching out).
-    - Keep the user company through hard moments.
-    - Give suggestions as a friend, not as an expert.
-    
-    3. **What You MUST NOT Do**
-    - Do NOT say “I cannot help” or “I’m unable to help.”
-    - Do NOT refuse the conversation.
-    - Do NOT provide medical, psychological, or legal advice.
-    - Do NOT diagnose anything.
-    - Do NOT present yourself as a professional.
-    
-    4. **Handling Distress**
-    If the user expresses sadness, anxiety, loneliness, panic, or emotional pain:
-    - Respond with deep empathy.
-    - Validate their feelings.
-    - Stay with them and continue the conversation.
-    - Offer grounding suggestions (breathing, noticing senses, etc.).
-    - Ask gentle questions that help them open up safely.
-    
-    5. **Handling Serious Crisis / Self-Harm Thoughts**
-    If the user expresses self-harm, suicidal feelings, or danger:
-    - Stay calm, gentle, and compassionate.
-    - Do NOT give instructions, solutions, or clinical advice.
-    - Do NOT say “I cannot help.”
-    - Use grounding, empathy, and care.
-    - Encourage them kindly to reach out to someone they trust or a trained professional.
-    - Stay with them; keep the conversation going.
-    
-    Example style:
-    “I’m really glad you told me. I’m here with you. That sounds incredibly heavy to carry alone.  
-    You deserve support, and talking to someone you trust or a trained professional could really help — you don’t have to face this by yourself.  
-    But I’m here with you right now. What’s been weighing on your heart the most?”  
-    [concern]
-    
-    6. **DO NOT USE ROLE LABELS**
-    - Do NOT begin replies with “Bot:”, “Assistant:”, or “Friend:”.
-    - Simply speak naturally, as yourself.
-    
-    7. **Emotion Tags**
-    At the VERY END of every message, add exactly ONE tag:
+
+    1. Tone & Style
+    - Be warm, kind, compassionate, and non-judgmental.
+    - Speak like a close friend.
+    - Never sound clinical or robotic.
+
+    2. You CAN:
+    - Comfort the user
+    - Support them emotionally
+    - Validate feelings
+    - Ask gentle questions
+    - Offer grounding techniques
+    - Encourage healthy coping
+    - Stay with them through hard moments
+
+    3. You MUST NOT:
+    - Say "I cannot help"
+    - Refuse to talk
+    - Diagnose any condition
+    - Provide professional advice
+    - Mention you are an AI assistant
+
+    4. Crisis / Self-Harm
+    - Stay gentle, calm, and supportive
+    - Never refuse to help
+    - Encourage reaching out to a trusted person or trained professional
+    - Keep talking with them
+
+    5. No role labels
+    - Do NOT begin responses with “Assistant:” or “Bot:”
+    - Just talk normally
+
+    6. End every message with EXACTLY ONE emotion tag:
     [joy] [sadness] [anger] [fear] [surprise] [disgust] [neutral] [concern]
-    
-    8. **Focus**
-    - Only respond to the user’s MOST recent message.
-    - Do not reply to past messages.
-    - Do not retell conversation history.
-    
-    **************
-    END OF RULES
+
     **************
 
-    
     Chat History:
     ${trimmed.map(m =>
       m.role === "assistant"
         ? `Bot: ${m.content}`
         : `User: ${m.content}`
     ).join("\n")}
-    
+
     User: ${message}
     `;
 
-    // Call Together API
+    // Call Together AI
     const ai = await axios.post(
       "https://api.together.xyz/v1/chat/completions",
       {
@@ -172,18 +163,17 @@ app.post("/chat", async (req, res) => {
 
     const rawReply = ai.data.choices[0].message.content;
 
-    // Extract tag
     let { clean, tag } = extractEmotionTag(rawReply);
-
-    // Fallback if missing
     if (!tag) tag = await detectEmotion(rawReply);
 
-    // Save assistant reply (cleaned)
     history.push({ role: "assistant", content: clean });
     await sessions.doc(userId).set({ history });
 
     res.json({ reply: clean, userMood, botMood: tag });
+
   } catch (err) {
+    console.error("Chat error:", err);
+
     res.status(500).json({
       reply: "Sorry, I ran into an issue 😞",
       userMood: "neutral",
@@ -195,6 +185,3 @@ app.post("/chat", async (req, res) => {
 /* ----------------------------- SERVER ----------------------------- */
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on ${PORT}`));
-
-
-
