@@ -31,25 +31,18 @@ function trimHistory(history, maxTokens = 15000) {
   return trimmed;
 }
 
-// ✅ Improved emotion detection
+// --- Keep original HuggingFace inference function ---
 async function detectEmotion(text) {
   try {
-    const cleanText = text.trim().replace(/^["']|["']$/g, '');
     const res = await axios.post(
-      "https://api.router.huggingface.co/models/j-hartmann/emotion-english-distilroberta-base",
-      { inputs: cleanText },
+      "https://api-inference.huggingface.co/models/j-hartmann/emotion-english-distilroberta-base",
+      { inputs: text },
       { headers: { Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}` } }
     );
 
-    let data = res.data;
-    if (data.error) return "neutral";
-
-    const arr = Array.isArray(data[0]) ? data[0] : data;
-    const top = arr.reduce((a, b) => (a.score > b.score ? a : b));
+    const top = res.data[0].reduce((a, b) => (a.score > b.score ? a : b));
     return top.label.toLowerCase();
-
-  } catch (err) {
-    console.log("Emotion detection error:", err.response?.data || err);
+  } catch {
     return "neutral";
   }
 }
@@ -77,12 +70,12 @@ app.post("/chat", async (req, res) => {
     let history = doc.exists ? doc.data().history : [];
     history.push({ role: "user", content: message });
 
-    // ✅ Detect user emotion from raw message only
+    // Emotion detection (original)
     const userMood = await detectEmotion(message);
 
     const trimmed = trimHistory(history);
 
-    // ----- PROMPT -----
+    // ----- UPDATED PROMPT -----
     const prompt = `
 You are "Babble," a warm, empathetic, emotionally intelligent companion bot.
 Your goal is to comfort, support, and uplift the user — like a caring close friend.
@@ -169,4 +162,3 @@ User: ${message}
 /* ----------------------------- SERVER ----------------------------- */
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on ${PORT}`));
-
