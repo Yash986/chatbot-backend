@@ -77,19 +77,26 @@ app.post("/chat", async (req, res) => {
 
     // Build prompt
     const prompt = `
-You are a friendly and concise chatbot friend.
-Always end your reply with ONE emotion tag:
-[joy] [sadness] [anger] [fear] [surprise] [disgust] [neutral] [concern]
-
-Chat History:
-${trimmed.map(m =>
-  m.role === "assistant"
-    ? `Bot: ${m.content}`
-    : `User: ${m.content}`
-).join("\n")}
-
-User: ${message}
-`;
+    You are a friendly and concise chatbot friend.
+    
+    RULES FOR YOUR RESPONSE:
+    - Only respond to the user's most recent message.
+    - Do NOT respond to or reference older chat messages.
+    - Do NOT say "You're welcome" unless the user just said "thank you".
+    - Do NOT start your message with "Bot:", "Assistant:", "Friend:", etc.
+    - Do NOT repeat role names.
+    - Always end your reply with exactly ONE emotion tag:
+    [joy] [sadness] [anger] [fear] [surprise] [disgust] [neutral] [concern]
+    
+    Chat History:
+    ${trimmed.map(m =>
+      m.role === "assistant"
+        ? `Bot: ${m.content}`
+        : `User: ${m.content}`
+    ).join("\n")}
+    
+    User: ${message}
+    `;
 
     // Call Together API
     const ai = await axios.post(
@@ -128,4 +135,5 @@ User: ${message}
 /* ----------------------------- SERVER ----------------------------- */
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on ${PORT}`));
+
 
