@@ -36,7 +36,7 @@ async function detectEmotion(text) {
   try {
     const cleanText = text.trim().replace(/^["']|["']$/g, '');
     const res = await axios.post(
-      "https://api-inference.huggingface.co/models/j-hartmann/emotion-english-distilroberta-base",
+      "https://api.router.huggingface.co/models/j-hartmann/emotion-english-distilroberta-base",
       { inputs: cleanText },
       { headers: { Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}` } }
     );
@@ -169,3 +169,4 @@ User: ${message}
 /* ----------------------------- SERVER ----------------------------- */
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on ${PORT}`));
+
